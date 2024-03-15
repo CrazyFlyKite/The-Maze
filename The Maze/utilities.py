@@ -1,5 +1,12 @@
-import logging
+# Hide the pygame support prompt
+from contextlib import redirect_stdout
+
+with redirect_stdout(None):
+	import pygame
+
 from dataclasses import dataclass
+from enum import Enum
+import logging
 from os import PathLike
 from typing import List, Optional, Final, TypeAlias
 
@@ -19,21 +26,31 @@ def get_grid(grid_file: PathLikeString, separator: Optional[str] = ' ') -> np.nd
 	try:
 		with open(grid_file, 'r', encoding='utf-8') as file:
 			return np.array([[int(number) for number in line.strip().split(separator)] for line in file.readlines()])
-	except (FileNotFoundError, IsADirectoryError):
+	except OSError:
 		return np.zeros(shape=(1, 1))
 
 
 GRID: Final[np.ndarray] = get_grid('../assets/data/grid.txt')
-GRID_WIDTH, GRID_HEIGHT = GRID.shape
+GRID_HEIGHT, GRID_WIDTH = GRID.shape
+
+
+# Cell types
+class CellType(Enum):
+	VOID: Final[int] = 0
+	WALL: Final[int] = 1
+	COIN: Final[int] = 2
+	DOOR: Final[int] = 3
+	EXIT: Final[int] = 4
+
 
 # Other
-CELL_SIZE: Final[int] = 16
-MAX_COINS: Final[int] = np.count_nonzero(GRID == 2)
+TILE: Final[int] = 16
+MAX_COINS: Final[int] = np.count_nonzero(GRID == CellType.COIN)
 
 # Window
 WINDOW_TITLE: Final[str] = 'The Maze'
-WINDOW_WIDTH: Final[int] = GRID_HEIGHT * CELL_SIZE
-WINDOW_HEIGHT: Final[int] = GRID_WIDTH * CELL_SIZE
+WINDOW_WIDTH: Final[int] = GRID_WIDTH * TILE
+WINDOW_HEIGHT: Final[int] = GRID_HEIGHT * TILE
 WINDOW_RESIZABLE: Final[bool] = False
 WINDOW_ICON: Final[PathLikeString] = '../assets/images/icon.png'
 
@@ -69,6 +86,12 @@ class SoundEffect:
 	name: PathLikeString
 	volume: float = 0.2
 	loops: int = 0
+
+
+def play(sound_effect: SoundEffect) -> None:
+	sound: pygame.mixer.Sound = pygame.mixer.Sound(sound_effect.name)
+	sound.set_volume(sound_effect.volume)
+	sound.play(sound_effect.loops)
 
 
 BACKGROUND_MUSIC: Final[SoundEffect] = SoundEffect('../assets/music/sneaky-snitch.mp3', loops=-1)

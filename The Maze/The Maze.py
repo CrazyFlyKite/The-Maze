@@ -1,9 +1,3 @@
-# Hide the pygame support prompt
-import contextlib
-
-with contextlib.redirect_stdout(None):
-	import pygame
-
 import sys
 from tkinter import Tk, Canvas, Event, PhotoImage
 from tkinter.messagebox import showinfo
@@ -16,12 +10,13 @@ class Game:
 		self.root = Tk()  # Main window
 		self.canvas = Canvas(width=WINDOW_WIDTH, height=WINDOW_HEIGHT)  # Canvas
 		self.player = self.canvas.create_rectangle(  # Player
-			PLAYER_POSITION.x1 * CELL_SIZE + 1, PLAYER_POSITION.y1 * CELL_SIZE + 1,
-			PLAYER_POSITION.x2 * CELL_SIZE - 1, PLAYER_POSITION.y2 * CELL_SIZE - 1,
+			PLAYER_POSITION.x1 * TILE + 1, PLAYER_POSITION.y1 * TILE + 1,
+			PLAYER_POSITION.x2 * TILE - 1, PLAYER_POSITION.y2 * TILE - 1,
 			fill=RED, outline=RED
 		)
 
 		# Game elements lists
+		self.void: Cells = []
 		self.walls: Cells = []
 		self.coins: Cells = []
 		self.doors: Cells = []
@@ -35,7 +30,7 @@ class Game:
 		pygame.mixer.init()
 
 	def __repr__(self) -> str:
-		return f'Player: 1, Walls: {len(self.walls)}, Coins: {len(self.coins)}, Doors: {len(self.doors)}, Exits: {len(self.exits)}'
+		return f'Player: 1, Walls: {len(self.walls)}, Coins: {len(self.coins)}, Doors: {len(self.doors)}, Exits: {len(self.exits)}, Void: {len(self.void)}'
 
 	def setup_window(self) -> None:
 		# Basic window setup
@@ -52,29 +47,31 @@ class Game:
 		for y, row in enumerate(GRID):
 			for x, cell in enumerate(row):
 				match cell:
-					case 1:  # Walls
-						wall_id: int = self.canvas.create_rectangle(x * CELL_SIZE, y * CELL_SIZE,
-						                                            x * CELL_SIZE + CELL_SIZE,
-						                                            y * CELL_SIZE + CELL_SIZE,
-						                                            fill=BLACK, outline=BLACK)
+					case CellType.VOID.value:
+						self.void.append(Cell(x, y, x + 1, y + 1))
+					case CellType.WALL.value:
+						wall_id: int = self.canvas.create_rectangle(x * TILE, y * TILE,
+						                                            x * TILE + TILE,
+						                                            y * TILE + TILE, fill=BLACK,
+						                                            outline=BLACK)
 						self.walls.append(Cell(x, y, x + 1, y + 1, object_id=wall_id))
-					case 2:  # Coins
-						coin_id: int = self.canvas.create_rectangle(x * CELL_SIZE + 3, y * CELL_SIZE + 3,
-						                                            x * CELL_SIZE + CELL_SIZE - 3,
-						                                            y * CELL_SIZE + CELL_SIZE - 3,
-						                                            fill=YELLOW, outline=YELLOW)
+					case CellType.COIN.value:
+						coin_id: int = self.canvas.create_rectangle(x * TILE + 3, y * TILE + 3,
+						                                            x * TILE + TILE - 3,
+						                                            y * TILE + TILE - 3, fill=YELLOW,
+						                                            outline=YELLOW)
 						self.coins.append(Cell(x, y, x + 1, y + 1, object_id=coin_id))
-					case 3:  # Doors
-						door_id: int = self.canvas.create_rectangle(x * CELL_SIZE + 1, y * CELL_SIZE + 1,
-						                                            x * CELL_SIZE + CELL_SIZE - 1,
-						                                            y * CELL_SIZE + CELL_SIZE - 1,
-						                                            fill=BLUE, outline=BLUE)
+					case CellType.DOOR.value:
+						door_id: int = self.canvas.create_rectangle(x * TILE + 1, y * TILE + 1,
+						                                            x * TILE + TILE - 1,
+						                                            y * TILE + TILE - 1, fill=BLUE,
+						                                            outline=BLUE)
 						self.doors.append(Cell(x, y, x + 1, y + 1, object_id=door_id))
-					case 4:  # Exits
-						exit_id: int = self.canvas.create_rectangle(x * CELL_SIZE + 1, y * CELL_SIZE + 1,
-						                                            x * CELL_SIZE + CELL_SIZE - 1,
-						                                            y * CELL_SIZE + CELL_SIZE - 1,
-						                                            fill=GREEN, outline=GREEN)
+					case CellType.EXIT.value:
+						exit_id: int = self.canvas.create_rectangle(x * TILE + 1, y * TILE + 1,
+						                                            x * TILE + TILE - 1,
+						                                            y * TILE + TILE - 1, fill=GREEN,
+						                                            outline=GREEN)
 						self.exits.append(Cell(x, y, x + 1, y + 1, object_id=exit_id))
 
 	def move(self, event: Event) -> None:
@@ -84,13 +81,13 @@ class Game:
 		# Process player input and move the player in that direction
 		match event.keysym.lower():
 			case 'left':
-				x = -CELL_SIZE
+				x = -TILE
 			case 'right':
-				x = CELL_SIZE
+				x = TILE
 			case 'up':
-				y = -CELL_SIZE
+				y = -TILE
 			case 'down':
-				y = CELL_SIZE
+				y = TILE
 
 		# Multiply the speed
 		x *= PLAYER_SPEED_MULTIPLIER
@@ -103,15 +100,15 @@ class Game:
 	def check_collision(self, x: float, y: float) -> None:
 		# Check for collisions with walls
 		for wall in self.walls:
-			if self.player in self.canvas.find_overlapping(wall.x1 * CELL_SIZE, wall.y1 * CELL_SIZE,
-			                                               wall.x2 * CELL_SIZE, wall.y2 * CELL_SIZE):
+			if self.player in self.canvas.find_overlapping(wall.x1 * TILE, wall.y1 * TILE,
+			                                               wall.x2 * TILE, wall.y2 * TILE):
 				self.canvas.move(self.player, -x, -y)
 				return
 
 		# Check for collisions with coins
 		for coin in self.coins:
-			if self.player in self.canvas.find_overlapping(coin.x1 * CELL_SIZE, coin.y1 * CELL_SIZE,
-			                                               coin.x2 * CELL_SIZE, coin.y2 * CELL_SIZE):
+			if self.player in self.canvas.find_overlapping(coin.x1 * TILE, coin.y1 * TILE,
+			                                               coin.x2 * TILE, coin.y2 * TILE):
 				self.total_coins += 1
 				logging.info(f"You have {self.total_coins} coin{'s' if self.total_coins > 1 else ''}.")
 
@@ -120,20 +117,20 @@ class Game:
 
 				# Remove all doors if you have all the coins
 				if self.total_coins == MAX_COINS:
-					self.play(DOOR_OPEN_SOUND)
+					play(DOOR_OPEN_SOUND)
 
 					for door in self.doors:
 						self.doors.remove(door)
 						self.canvas.delete(door.object_id)
 				else:
-					self.play(COIN_SOUND)
+					play(COIN_SOUND)
 
 				return
 
 		# Check for collisions with doors
 		for door in self.doors:
-			if self.player in self.canvas.find_overlapping(door.x1 * CELL_SIZE, door.y1 * CELL_SIZE,
-			                                               door.x2 * CELL_SIZE, door.y2 * CELL_SIZE):
+			if self.player in self.canvas.find_overlapping(door.x1 * TILE, door.y1 * TILE,
+			                                               door.x2 * TILE, door.y2 * TILE):
 				if self.total_coins < MAX_COINS:
 					self.canvas.move(self.player, -x, -y)
 
@@ -141,18 +138,14 @@ class Game:
 
 		# Check for collisions with exits
 		for exit_ in self.exits:
-			if self.player in self.canvas.find_overlapping(exit_.x1 * CELL_SIZE, exit_.y1 * CELL_SIZE,
-			                                               exit_.x2 * CELL_SIZE, exit_.y2 * CELL_SIZE):
+			if self.player in self.canvas.find_overlapping(exit_.x1 * TILE, exit_.y1 * TILE,
+			                                               exit_.x2 * TILE, exit_.y2 * TILE):
 				self.win()
 
-	def play(self, sound_effect: SoundEffect) -> None:
-		sound: pygame.mixer.Sound = pygame.mixer.Sound(sound_effect.name)
-		sound.set_volume(sound_effect.volume)
-		sound.play(sound_effect.loops)
-
-	def win(self) -> None:
+	@staticmethod
+	def win() -> None:
 		# Display the win screen and exit the game
-		self.play(END_SOUND)
+		play(END_SOUND)
 		showinfo('Congratulations!', 'You have successfully completed the game!')
 		pygame.quit()
 		sys.exit(0)
@@ -169,11 +162,11 @@ class Game:
 		self.bind_events()
 
 		# Debug
-		logging.debug(self)
+		logging.debug(repr(self))
 		logging.info(f'You have no coins.')
 
 		# Run
-		self.play(BACKGROUND_MUSIC)
+		play(BACKGROUND_MUSIC)
 		self.root.mainloop()
 
 

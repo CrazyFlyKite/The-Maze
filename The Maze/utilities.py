@@ -5,12 +5,9 @@ with redirect_stdout(None):
 	import pygame
 
 from dataclasses import dataclass
-from enum import Enum
 import logging
 from os import PathLike
-from typing import List, Optional, Final, TypeAlias
-
-import numpy as np
+from typing import List, Dict, Optional, Final, NoReturn, TypeAlias
 
 from setup_logging import setup_logging
 
@@ -18,24 +15,12 @@ from setup_logging import setup_logging
 setup_logging(level=logging.DEBUG, logging_format='[%(levelname)s] - %(message)s')
 
 # Custom types
-PathLikeString: TypeAlias = str | bytes | PathLike
-
-
-# Level Grid
-def get_grid(grid_file: PathLikeString, separator: Optional[str] = ' ') -> np.ndarray:
-	try:
-		with open(grid_file, 'r', encoding='utf-8') as file:
-			return np.array([[int(number) for number in line.strip().split(separator)] for line in file.readlines()])
-	except OSError:
-		return np.zeros(shape=(1, 1))
-
-
-GRID: Final[np.ndarray] = get_grid('../assets/data/grid.txt')
-GRID_HEIGHT, GRID_WIDTH = GRID.shape
+Grid: TypeAlias = List[List[int]]
+PathLikeString: TypeAlias = str | PathLike
 
 
 # Cell types
-class CellType(Enum):
+class CellType:
 	VOID: Final[int] = 0
 	WALL: Final[int] = 1
 	COIN: Final[int] = 2
@@ -43,9 +28,26 @@ class CellType(Enum):
 	EXIT: Final[int] = 4
 
 
+# Level Grid
+def get_grid(map_file: PathLikeString, separator: Optional[str] = ' ') -> Grid:
+	mapping: Dict[str, int] = {
+		'_': CellType.VOID,
+		'1': CellType.WALL,
+		'2': CellType.COIN,
+		'3': CellType.DOOR,
+		'4': CellType.EXIT
+	}
+
+	with open(map_file, 'r', encoding='utf-8') as file:
+		return [[mapping.get(character) for character in line.strip().split(separator)] for line in file.readlines()]
+
+
+GRID: Final[Grid] = get_grid('../assets/data/grid.txt')
+GRID_HEIGHT, GRID_WIDTH = len(GRID), len(GRID[0])
+
 # Other
 TILE: Final[int] = 16
-MAX_COINS: Final[int] = np.count_nonzero(GRID == CellType.COIN)
+MAX_COINS: Final[int] = sum(row.count(CellType.COIN) for row in GRID)
 
 # Window
 WINDOW_TITLE: Final[str] = 'The Maze'
@@ -98,3 +100,8 @@ BACKGROUND_MUSIC: Final[SoundEffect] = SoundEffect('../assets/music/sneaky-snitc
 COIN_SOUND: Final[SoundEffect] = SoundEffect('../assets/music/coin.mp3', 0.1)
 DOOR_OPEN_SOUND: Final[SoundEffect] = SoundEffect('../assets/music/door-open.mp3', 0.1)
 END_SOUND: Final[SoundEffect] = SoundEffect('../assets/music/end.mp3', 0.1)
+
+
+# Assert never
+def assert_never(argument: NoReturn) -> NoReturn:
+	raise AssertionError('Expected code is unreachable')
